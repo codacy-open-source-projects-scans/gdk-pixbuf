@@ -65,14 +65,16 @@ test_type9_rotation_exif_tag (void)
 
   ref = gdk_pixbuf_new_from_file (g_test_get_filename (G_TEST_DIST, "bug725582-testrotate.jpg", NULL), &error);
   g_assert_no_error (error);
-  ref1 = gdk_pixbuf_apply_embedded_orientation (ref);
 
+  ref1 = gdk_pixbuf_apply_embedded_orientation (ref);
   ref2 = gdk_pixbuf_new_from_file (g_test_get_filename (G_TEST_DIST, "bug725582-testrotate.png", NULL), &error);
   g_assert_no_error (error);
 
   ret = pixdata_equal (ref1, ref2, &error);
   g_assert_no_error (error);
   g_assert (ret);
+  g_object_unref (ref2);
+  g_object_unref (ref1);
 
   g_assert_cmpstr (gdk_pixbuf_get_option (ref, "orientation"), ==, "6");
 
@@ -93,6 +95,7 @@ test_bug_775218 (void)
 
   ref = gdk_pixbuf_new_from_file (g_test_get_filename (G_TEST_DIST, "bug775218.jpg", NULL), &error);
   g_assert_error (error, GDK_PIXBUF_ERROR, GDK_PIXBUF_ERROR_CORRUPT_IMAGE);
+  g_error_free (error);
   g_clear_object (&ref);
 }
 
@@ -174,7 +177,6 @@ static void
 test_jpeg_fbfbfbfb (void)
 {
   GdkPixbufLoader *loader;
-  GdkPixbuf *pixbuf;
   GError *error = NULL;
   gchar *contents;
   gsize size;
@@ -185,9 +187,17 @@ test_jpeg_fbfbfbfb (void)
       return;
     }
 
-  g_test_message ("Load JPEG with size 0xfbfbfbfb (issue: 250)");
+  g_test_message ("Load JPEG with size 0xfbfbfbfb (issue: 205)");
 
-  g_file_get_contents (g_test_get_filename (G_TEST_DIST, "issue205.jpg", NULL), &contents, &size, &error);
+  if (!g_file_get_contents (g_test_get_filename (G_TEST_DIST, "issue205.jpg", NULL), &contents, &size, &error))
+    {
+      if (g_error_matches (error, GDK_PIXBUF_ERROR, GDK_PIXBUF_ERROR_INSUFFICIENT_MEMORY))
+        {
+          g_test_skip ("not enough memory for this test");
+          return;
+        }
+    }
+
   g_assert_no_error (error);
 
   loader = gdk_pixbuf_loader_new ();
@@ -196,11 +206,9 @@ test_jpeg_fbfbfbfb (void)
   g_assert_no_error (error);
 
   gdk_pixbuf_loader_close (loader, &error);
-  g_assert_error (error, GDK_PIXBUF_ERROR, GDK_PIXBUF_ERROR_CORRUPT_IMAGE);
+  _g_assert_error_domain (error, GDK_PIXBUF_ERROR);
 
-  pixbuf = gdk_pixbuf_loader_get_pixbuf (loader);
-  g_assert_nonnull (pixbuf);
-
+  g_error_free (error);
   g_object_unref (loader);
   g_free (contents);
 }

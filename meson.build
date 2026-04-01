@@ -1,5 +1,5 @@
 project('gdk-pixbuf', 'c',
-  version: '2.44.5',
+  version: '2.44.6',
   license: 'LGPL-2.1-or-later',
   default_options: [
     'buildtype=debugoptimized',
@@ -330,6 +330,12 @@ if not others_opt.disabled()
     'qtif',
     'tga',
     'xbm',
+    'xpm',
+  ]
+endif
+
+if not get_option('legacy_xpm').disabled()
+  enabled_loaders += [
     'xpm',
   ]
 endif

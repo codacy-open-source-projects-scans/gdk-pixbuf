@@ -31,7 +31,7 @@ gdk_pixbuf__webp_image_save (FILE       *f,
                              GError    **error)
 {
   return glycin_image_save ("image/webp", f, NULL, NULL,
-                            pixbuf, NULL, NULL, NULL, -1, -1, error);
+                            pixbuf, NULL, NULL, NULL, -1, -1, 0, 0, error);
 }
 
 static gboolean
@@ -43,7 +43,7 @@ gdk_pixbuf__webp_image_save_to_callback (GdkPixbufSaveFunc   save_func,
                                          GError            **error)
 {
   return glycin_image_save ("image/webp", NULL, save_func, user_data,
-                            pixbuf, NULL, NULL, NULL, -1, -1, error);
+                            pixbuf, NULL, NULL, NULL, -1, -1, 0, 0, error);
 }
 
 static gboolean
@@ -70,6 +70,7 @@ MODULE_ENTRY (fill_vtable) (GdkPixbufModule *module)
 MODULE_ENTRY (fill_info) (GdkPixbufFormat *info)
 {
   static const GdkPixbufModulePattern signature[] = {
+    { "RIFF    WEBP", "    xxxx    ", 100 },
     { NULL, NULL, 0 }
   };
   static const gchar *mime_types[] = {

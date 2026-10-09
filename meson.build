@@ -1,5 +1,5 @@
 project('gdk-pixbuf', 'c',
-  version: '2.44.6',
+  version: '2.44.8',
   license: 'LGPL-2.1-or-later',
   default_options: [
     'buildtype=debugoptimized',
@@ -260,7 +260,7 @@ glycin_opt = get_option('glycin').enable_auto_if(host_machine.system() == 'linux
 if glycin_opt.disabled()
   glycin_dep = disabler()
 else
-  glycin_dep = dependency('glycin-2', version: '>= 2.0.1', required: glycin_opt)
+  glycin_dep = dependency('glycin-2', version: '>= 2.2.alpha.7', required: glycin_opt)
 endif
 
 # Check which loaders should be built into gdk-pixbuf

@@ -20,6 +20,7 @@
 
 #include "config.h"
 
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #ifdef HAVE_UNISTD_H
@@ -65,7 +66,7 @@ g_file_from_file (FILE    *f,
   char filename[256] = { 0, };
   ssize_t s;
 
-  g_snprintf (proc_path, sizeof (proc_path), "/proc/%u/fd/%d", getpid (), fileno (f));
+  g_snprintf (proc_path, sizeof (proc_path), "/proc/self/fd/%d", fileno (f));
   s = readlink (proc_path, filename, sizeof (filename));
 
   if (s < 0)
@@ -420,6 +421,9 @@ load_pixbuf_with_glycin (GFile                    *file,
   GlyImage *image;
   GlyFrameRequest *request = NULL;
   GlyFrame *gly_frame = NULL;
+  GlyFrameDetails *gly_frame_details = NULL;
+  GlyPixelDensity *gly_pixel_density = NULL;
+  GlyPixelDensity *gly_pixel_density_dpi = NULL;
   GdkPixbuf *pixbuf = NULL;
   GError *local_error = NULL;
   int width, height;
@@ -477,6 +481,23 @@ load_pixbuf_with_glycin (GFile                    *file,
       g_strfreev (keys);
     }
 
+  gly_frame_details = gly_frame_get_details (gly_frame);
+  gly_pixel_density = gly_frame_details_get_pixel_density (gly_frame_details);
+
+  if (gly_pixel_density)
+    {
+          gly_pixel_density_dpi = gly_pixel_density_convert (gly_pixel_density,
+                                                             GLY_PHYSICAL_DIMENSION_UNIT_INCH);
+
+          g_snprintf (value, sizeof (value), "%d",
+                      (int) round (gly_pixel_density_get_x_value (gly_pixel_density_dpi)));
+          gdk_pixbuf_set_option (pixbuf, "x-dpi", value);
+
+          g_snprintf (value, sizeof (value), "%d",
+                      (int) round (gly_pixel_density_get_y_value (gly_pixel_density_dpi)));
+          gdk_pixbuf_set_option (pixbuf, "y-dpi", value);
+    }
+
   if (animation && gly_frame_get_delay (gly_frame) != 0)
     {
       GdkPixbufGlycinFrame frame;
@@ -498,6 +519,9 @@ done:
   g_clear_object (&image);
   g_clear_object (&request);
   g_clear_object (&gly_frame);
+  g_clear_object (&gly_frame_details);
+  g_clear_object (&gly_pixel_density);
+  g_clear_object (&gly_pixel_density_dpi);
 
   if (g_error_matches (local_error, GLY_LOADER_ERROR, GLY_LOADER_ERROR_FAILED))
     {
@@ -730,6 +754,8 @@ glycin_image_save (const char         *mimetype,
                    GBytes             *icc_profile,
                    int                 quality,
                    int                 compression,
+                   int                 x_dpi,
+                   int                 y_dpi,
                    GError            **error)
 {
   GBytes *data;
@@ -787,6 +813,16 @@ glycin_image_save (const char         *mimetype,
   if (compression != -1)
     gly_creator_set_encoding_compression (creator, compression);
 
+  if (x_dpi > 0 && y_dpi > 0)
+  {
+    GlyPixelDensity *pixel_density = gly_pixel_density_new ((double) x_dpi,
+                                                            GLY_PHYSICAL_DIMENSION_UNIT_INCH,
+                                                            (double) y_dpi,
+                                                            GLY_PHYSICAL_DIMENSION_UNIT_INCH);
+    gly_new_frame_set_pixel_density (frame, pixel_density);
+    g_object_unref (pixel_density);
+  }
+
   encoded_image = gly_creator_create (creator, error);
 
   g_object_unref (creator);
@@ -800,21 +836,28 @@ glycin_image_save (const char         *mimetype,
 
   if (f)
     {
-      GFile *file = g_file_from_file (f, error);
+      size_t n_written;
 
-      if (!file)
-        res = FALSE;
+      while (length > 0)
+        {
+          n_written = fwrite (image_data, sizeof (gchar), length, f);
+          if (n_written <= 0)
+            break;
+          length -= n_written;
+          image_data += n_written;
+        }
+
+      if (length)
+        {
+          g_set_error_literal (error,
+                          GDK_PIXBUF_ERROR,
+                          GDK_PIXBUF_ERROR_FAILED,
+                          "Couldn't write to file");
+          res = FALSE;
+        }
       else
         {
-          res = g_file_replace_contents (file,
-                                         image_data, length,
-                                         NULL,
-                                         FALSE,
-                                         G_FILE_CREATE_NONE,
-                                         NULL,
-                                         NULL,
-                                         error);
-          g_object_unref (file);
+          res = TRUE;
         }
     }
   else
